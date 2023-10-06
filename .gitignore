@@ -1,0 +1,12 @@
+__pycache__
+
+# Tests
+cursors.py
+main-2.py
+main-old.py
+old.py
+test.py
+tkinter-test.py
+
+# Database
+*.db
