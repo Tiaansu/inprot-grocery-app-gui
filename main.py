@@ -1,4 +1,3 @@
-import datetime as dt
 import sqlite3 as sqlite
 import customtkinter as ctk
 from tkinter.messagebox import *
@@ -6,6 +5,7 @@ import random
 from functools import partial
 from PIL import Image
 import os
+from tabulate import tabulate
 
 ctk.set_appearance_mode('dark')
 ctk.set_default_color_theme('blue')
@@ -18,18 +18,6 @@ APP_HEIGHT = 600
 FG_COLOR = ['gray81', 'gray20']
 
 shoppingCartItems = []
-
-def getDateNow():
-    now = dt.datetime.now()
-    weekday = now.strftime('%A')
-    month = now.strftime('%B')
-    day = now.strftime('%d')
-    year = now.strftime('%Y')
-    hour = now.strftime('%I')
-    minute = now.strftime('%M')
-    second = now.strftime('%S')
-    meridian = now.strftime('%p')
-    return f'{weekday}, {month} {day}, {year} - {hour}:{minute}:{second} {meridian}'
 
 def getCategory(categoryId: int):
     category = 'unknown'
@@ -306,6 +294,8 @@ class BrowseCategoryItems(ctk.CTkFrame):
             item_price_and_stock.place(relx=0.05, rely=0.35)
             
             item_add_to_cart_button = ctk.CTkButton(item_frame, text='Add to cart', font=parent.buttonFont, command=promptInputQuantityDialog)
+            if element[3] <= 0:
+                item_add_to_cart_button.configure(state='disabled')
             item_add_to_cart_button.place(relx=0.15, rely=0.675)
 
             self.item_frames.append(item_frame)
@@ -471,7 +461,7 @@ class ShoppingCartFrame(ctk.CTkFrame):
         self.back_to_last_section_button = ctk.CTkButton(self, text=f'Back to {getCategory(categoryId)} section' if categoryId != -1 else 'Back to Categories', width=345, height=50, font=parent.buttonFont, command=lambda: self.backToLastSection(categoryId))
         self.back_to_last_section_button.place(relx=0.25, rely=0.875, anchor='center')
 
-        self.checkout_button = ctk.CTkButton(self, text='Checkout', width=345, height=50, font=parent.buttonFont, fg_color='#009c0d', hover_color='#006609')
+        self.checkout_button = ctk.CTkButton(self, text='Checkout', width=345, height=50, font=parent.buttonFont, fg_color='#009c0d', hover_color='#006609', command=self.checkoutShoppingCartItems)
         self.checkout_button.place(relx=0.75, rely=0.875, anchor='center')
 
     def backToLastSection(self, categoryId):
@@ -479,6 +469,38 @@ class ShoppingCartFrame(ctk.CTkFrame):
             self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
         else:
             self = BrowseCategoryItems(parent=self, category=categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+
+    def checkoutShoppingCartItems(self):
+        if len(shoppingCartItems) <= 0:
+            self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+        else:
+            DIALOG_WIDTH = 400
+            DIALOG_HEIGHT = 200
+            
+            totalPrice = 0
+            for item in shoppingCartItems:
+                totalPrice += item[1] * item[3]
+
+            dialog = ctk.CTkInputDialog(title='Tindahan ni Aling Nena - Checkout shopping cart items', text=f'Please enter your money below: (Make sure it\'s higher than ₱{totalPrice})')
+
+            x = (dialog.winfo_screenwidth() // 2) - (DIALOG_WIDTH // 2)
+            y = (dialog.winfo_screenheight() // 2) - (DIALOG_HEIGHT // 2)
+            dialog.geometry('{}x{}+{}+{}'.format(DIALOG_WIDTH, DIALOG_HEIGHT, x, y))
+
+            value = dialog.get_input()
+
+            if value != None:
+                if value.isnumeric():
+                    finalValue = int(value)
+
+                    if totalPrice > finalValue:
+                        dialog = showwarning(title='Tindahan ni Aling Nena - Checkout shopping cart items', message=f'Insufficient money, you still need ₱{totalPrice - finalValue} to continue.')
+
+                        self.checkoutShoppingCartItems()
+                        return
+                    self = CheckoutPageFrame(parent=self, money=finalValue, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+                else:
+                    self.checkoutShoppingCartItems()
 
     def updateItemDialog(self, element):
         DIALOG_WIDTH = 400
@@ -546,6 +568,45 @@ class ShoppingCartFrame(ctk.CTkFrame):
                                         self.updateItemDialog(element)
                         else:
                             self.updateItemDialog(element)
+
+class CheckoutPageFrame(ctk.CTkFrame):
+    def __init__(self, parent, money, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.headerFont = parent.headerFont
+        self.subtitleFont = parent.subtitleFont
+        self.normalFont = parent.normalFont
+        self.buttonFont = parent.buttonFont
+        self.configure(fg_color=FG_COLOR)
+        self.money = money
+
+        self.pack()
+
+        self.header = ctk.CTkLabel(self, text='Checkout item(s)', font=parent.headerFont)
+        self.header.place(relx=0.5, rely=0.1, anchor='center')
+
+        self.checkout_text = ctk.CTkTextbox(self, width=600, height=300, font=ctk.CTkFont('Consolas', 24))
+        self.checkout_text.grid(padx=(20, 0), pady=(20, 0), sticky='nsew')
+        self.checkout_text.place(relx=0.5, rely=0.45, anchor='center')
+
+        headers = ['Item', 'Quantity', 'Price']
+        table = []
+        totalPrice = 0
+
+        for index, element in enumerate(shoppingCartItems):
+            totalPrice += element[3] * element[1]
+            table.append([element[2], element[1], f'₱{element[3]}'])
+            cur.execute(f'UPDATE grocery_items SET stocks = stocks - {element[1]} WHERE id = ?', [(element[0])])
+            con.commit()
+
+        table.append(['-------', '----------', '-------'])
+        table.append([' ', 'Subtotal', f'₱{totalPrice}'])
+        table.append([' ', 'Payment', f'₱{self.money}'])
+        table.append([' ', 'Change', f'₱{self.money - totalPrice}'])
+
+        self.checkout_text.insert('0.0', tabulate(table, headers, tablefmt='simple'))
+
+        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=700, height=50, font=parent.buttonFont)
+        self.back_to_main_menu_button.place(relx=0.5, rely=0.9, anchor='center')
 
 class HomePageFrame(ctk.CTkFrame):
     def __init__(self, parent, **kwargs):
