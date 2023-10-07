@@ -15,6 +15,9 @@ cur = con.cursor()
 
 APP_WIDTH = 800
 APP_HEIGHT = 600
+FG_COLOR = ['gray81', 'gray20']
+
+shoppingCartItems = []
 
 def getDateNow():
     now = dt.datetime.now()
@@ -52,6 +55,7 @@ class LoadGroceryItemsFrame(ctk.CTkFrame):
         self.subtitleFont = parent.subtitleFont
         self.normalFont = parent.normalFont
         self.buttonFont = parent.buttonFont
+        self.configure(fg_color=FG_COLOR)
 
         MAXIMUM_VALUE = 78
         MINIMUM_VALUE = 0
@@ -211,13 +215,14 @@ class BrowseCategoriesFrame(ctk.CTkFrame):
         self.subtitleFont = parent.subtitleFont
         self.normalFont = parent.normalFont
         self.buttonFont = parent.buttonFont
+        self.configure(fg_color=FG_COLOR)
 
         self.pack()
 
         self.header = ctk.CTkLabel(self, text='Categories', font=parent.headerFont)
         self.header.place(relx=0.5, rely=0.1, anchor='center')
 
-        self.categories_container = ctk.CTkScrollableFrame(self, label_text='Choose the category below:', width=475)
+        self.categories_container = ctk.CTkScrollableFrame(self, label_text='Choose the category below:', width=475, label_font=parent.subtitleFont)
         self.categories_container.place(relx=0.5, rely=0.4, anchor='center')
 
         self.buttons = []
@@ -238,11 +243,20 @@ class BrowseCategoriesFrame(ctk.CTkFrame):
 
             currentColumn += 1
 
-        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=700, height=50, font=parent.buttonFont, command=self.backToMainMenu)
-        self.back_to_main_menu_button.place(relx=0.5, rely=0.8, anchor='center')
+        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=345, height=50, font=parent.buttonFont, command=self.backToMainMenu)
+        self.back_to_main_menu_button.place(relx=0.25, rely=0.8, anchor='center')
+
+        self.view_shopping_cart_button = ctk.CTkButton(self, text='View shopping cart', width=345, height=50, font=parent.buttonFont, command=self.viewShoppingCart)
+        self.view_shopping_cart_button.place(relx=0.75, rely=0.8, anchor='center')
 
     def backToMainMenu(self):
         self = HomePageFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+
+    def viewShoppingCart(self):
+        if len(shoppingCartItems) <= 0:
+            showerror(title='Tindahan ni Aling Nena - Shopping cart', message='Your shopping cart is still empty, please add items to your cart.')
+        else:
+            self = ShoppingCartFrame(parent=self, categoryId=-1, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
 
     def browseCategoryItems(self, categoryId):
         self = BrowseCategoryItems(parent=self, category=categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
@@ -254,13 +268,15 @@ class BrowseCategoryItems(ctk.CTkFrame):
         self.subtitleFont = parent.subtitleFont
         self.normalFont = parent.normalFont
         self.buttonFont = parent.buttonFont
+        self.category = category
+        self.configure(fg_color=FG_COLOR)
 
         self.pack()
 
         self.header = ctk.CTkLabel(self, text=getCategory(category), font=parent.headerFont)
         self.header.place(relx=0.5, rely=0.1, anchor='center')
 
-        self.items_container = ctk.CTkScrollableFrame(self, label_text='Choose the item(s) below:', width=625, height=300)
+        self.items_container = ctk.CTkScrollableFrame(self, label_text='Choose the item(s) below:', width=625, height=300, label_font=parent.subtitleFont)
         self.items_container.place(relx=0.5, rely=0.45, anchor='center')
 
         result = cur.execute('SELECT * FROM grocery_items WHERE category = ?', [(category)])
@@ -270,16 +286,15 @@ class BrowseCategoryItems(ctk.CTkFrame):
         
         for element in result:
             id, name, categoryId, stocks, price = element
-            groceryItems.append([id, name, getCategory(categoryId), stocks if stocks > 0 else 'out of stock', price])
+            groceryItems.append([id, name, getCategory(categoryId), stocks, price])
 
         self.item_frames = []
         current_dir = os.path.dirname(os.path.abspath(__file__))
         for index, element in enumerate(groceryItems):
-            currentItem = index
             currentElement = element
-            promptInputQuantityDialog = partial(self.promptInputQuantityDialog, currentIndex=currentItem, element=currentElement)
+            promptInputQuantityDialog = partial(self.promptInputQuantityDialog, element=currentElement)
 
-            item_frame = ctk.CTkFrame(self.items_container, width=200, height=125)
+            item_frame = ctk.CTkFrame(self.items_container, width=200, height=125, fg_color=FG_COLOR)
 
             item_name = ctk.CTkLabel(item_frame, text=element[1], font=parent.normalFont)
             item_name.place(relx=0.2, rely=0.05)
@@ -287,7 +302,7 @@ class BrowseCategoryItems(ctk.CTkFrame):
             item_preview = ctk.CTkLabel(item_frame, text='', image=ctk.CTkImage(Image.open(os.path.join(current_dir, 'Images', 'products', f'{element[1]}.png'))))
             item_preview.place(relx=0.05, rely=0.05)
 
-            item_price_and_stock = ctk.CTkLabel(item_frame, text=f' Price: ₱{element[4]}\nStocks: {element[3]}', font=parent.normalFont)
+            item_price_and_stock = ctk.CTkLabel(item_frame, text=f' Price: ₱{element[4]}\nStocks: {element[3] if element[3] > 0 else "out of stock"}', font=parent.normalFont)
             item_price_and_stock.place(relx=0.05, rely=0.35)
             
             item_add_to_cart_button = ctk.CTkButton(item_frame, text='Add to cart', font=parent.buttonFont, command=promptInputQuantityDialog)
@@ -306,25 +321,231 @@ class BrowseCategoryItems(ctk.CTkFrame):
 
             currentColumn += 1
 
-        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Categories', width=700, height=50, font=parent.buttonFont, command=self.backToCategories)
-        self.back_to_main_menu_button.place(relx=0.5, rely=0.9, anchor='center')
+        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Categories', width=345, height=50, font=parent.buttonFont, command=self.backToCategories)
+        self.back_to_main_menu_button.place(relx=0.25, rely=0.875, anchor='center')
+
+        self.view_shopping_cart_button = ctk.CTkButton(self, text='View shopping cart', width=345, height=50, font=parent.buttonFont, command=self.viewShoppingCart)
+        self.view_shopping_cart_button.place(relx=0.75, rely=0.875, anchor='center')
     
     def backToCategories(self):
         self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
 
-    def promptInputQuantityDialog(self, currentIndex, element):
+    def viewShoppingCart(self):
+        if len(shoppingCartItems) <= 0:
+            showerror(title='Tindahan ni Aling Nena - Shopping cart', message='Your shopping cart is still empty, please add items to your cart.')
+        else:
+            self = ShoppingCartFrame(parent=self, categoryId=self.category, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+
+    def promptInputQuantityDialog(self, element):
         DIALOG_WIDTH = 400
         DIALOG_HEIGHT = 200
+
+        for items in shoppingCartItems:
+            if items[2] == element[1]:
+                dialog = ctk.CTkInputDialog(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', text=f'Please enter the new quantity below: (Make sure it\'s lower than {element[3]})')
+
+                x = (dialog.winfo_screenwidth() // 2) - (DIALOG_WIDTH // 2)
+                y = (dialog.winfo_screenheight() // 2) - (DIALOG_HEIGHT // 2)
+                dialog.geometry('{}x{}+{}+{}'.format(DIALOG_WIDTH, DIALOG_HEIGHT, x, y))
+
+                value = dialog.get_input()
+
+                if value != None:
+                    if value.isnumeric():
+                        finalValue = int(value)
+
+                        if finalValue <= 0:
+                            self.promptInputQuantityDialog(element)
+                            return
+
+                        if element[3] - finalValue < 0:
+                            dialog = askyesno(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', message=f'Item {element[1]}\'s stock is not enough to your entered quantity, want to continue? (This will override your selected quantity to available stock)')
+
+                            if dialog:
+                                finalValue = element[3]
+                            else:
+                                self.promptInputQuantityDialog(element)
+                        
+                        dialog = askyesno(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', message=f'Want to add {element[1]} with {finalValue} quantity to your shopping cart? It will add ₱{element[4] * finalValue} to your total price.')
+
+                        if dialog:
+                            items[1] = finalValue
+                        else:
+                            self.promptInputQuantityDialog(element)
+                    else:
+                        self.promptInputQuantityDialog(element)
+                return
+            break
+
         dialog = ctk.CTkInputDialog(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', text=f'Please enter the quantity below: (Make sure it\'s lower than {element[3]})')
         
         x = (self.winfo_screenwidth() // 2) - (DIALOG_WIDTH // 2)
         y = (self.winfo_screenheight() // 2) - (DIALOG_HEIGHT // 2)
         dialog.geometry('{}x{}+{}+{}'.format(DIALOG_WIDTH, DIALOG_HEIGHT, x, y))
-        
-        if not dialog.get_input().isnumeric():
-            self.promptInputQuantityDialog(currentIndex, element)
+
+        value = dialog.get_input()
+
+        if value != None:
+            if value.isnumeric():
+                finalValue = int(value)
+
+                if finalValue <= 0:
+                    self.promptInputQuantityDialog(element)
+                    return
+
+                if element[3] - finalValue < 0:
+                    dialog = askyesno(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', message=f'Item {element[1]}\'s stock is not enough to your entered quantity, want to continue? (This will override your selected quantity to available stock)')
+
+                    if dialog:
+                        finalValue = element[3]
+                    else:
+                        self.promptInputQuantityDialog(element)
+
+                dialog = askyesno(title=f'Tindahan ni Aling Nena - Add {element[1]} to cart', message=f'Want to add {element[1]} with {finalValue} quantity to your shopping cart? It will add ₱{element[4] * finalValue} to your total price.')
+
+                if dialog:
+                    shoppingCartItems.append([element[0], finalValue, element[1], element[4]])
+                else:
+                    self.promptInputQuantityDialog(element)
+            else:
+                self.promptInputQuantityDialog(element)
+
+class ShoppingCartFrame(ctk.CTkFrame):
+    def __init__(self, parent, categoryId = -1, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.headerFont = parent.headerFont
+        self.subtitleFont = parent.subtitleFont
+        self.normalFont = parent.normalFont
+        self.buttonFont = parent.buttonFont
+        self.configure(fg_color=FG_COLOR)
+        self.categoryId = categoryId
+
+        if len(shoppingCartItems) <= 0:
+            if categoryId == -1:
+                self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+            else:
+                self = BrowseCategoryItems(parent=self, category=categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+            return
+
+        self.pack()
+
+        self.header = ctk.CTkLabel(self, text='Your shopping cart', font=parent.headerFont)
+        self.header.place(relx=0.5, rely=0.1, anchor='center')
+
+        self.items_container = ctk.CTkScrollableFrame(self, label_text='Choose the item(s) below:', width=625, height=300, label_font=parent.subtitleFont)
+        self.items_container.place(relx=0.5, rely=0.45, anchor='center')
+
+        self.item_frames = []
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        for index, element in enumerate(shoppingCartItems):
+            currentElement = element
+            updateItemDialog = partial(self.updateItemDialog, element=currentElement)
+
+            item_frame = ctk.CTkFrame(self.items_container, width=200, height=150, fg_color=FG_COLOR)
+
+            item_name = ctk.CTkLabel(item_frame, text=element[2], font=parent.normalFont)
+            item_name.place(relx=0.2, rely=0.05)
+
+            item_preview = ctk.CTkLabel(item_frame, text='', image=ctk.CTkImage(Image.open(os.path.join(current_dir, 'Images', 'products', f'{element[2]}.png'))))
+            item_preview.place(relx=0.05, rely=0.05)
+
+            item_summary = ctk.CTkLabel(item_frame, text=f'Price: ₱{element[3]}\nQuantity: {element[1]}\n\nTotal Price: ₱{element[3] * element[1]}', font=parent.normalFont)
+            item_summary.place(relx=0.05, rely=0.25)
+
+            item_update_button = ctk.CTkButton(item_frame, text='Update', font=parent.buttonFont, command=updateItemDialog)
+            item_update_button.place(relx=0.15, rely=0.750)
+
+            self.item_frames.append(item_frame)
+
+        currentColumn = 0
+        currentRow = 0
+        for index, _ in enumerate(self.item_frames):
+            if currentColumn + 1 > 3:
+                currentColumn = 0
+                currentRow += 1
+
+            self.item_frames[index].grid(row=currentRow, column=currentColumn, padx=5, pady=5)
+
+            currentColumn += 1
+
+        self.back_to_last_section_button = ctk.CTkButton(self, text=f'Back to {getCategory(categoryId)} section' if categoryId != -1 else 'Back to Categories', width=345, height=50, font=parent.buttonFont, command=lambda: self.backToLastSection(categoryId))
+        self.back_to_last_section_button.place(relx=0.25, rely=0.875, anchor='center')
+
+        self.checkout_button = ctk.CTkButton(self, text='Checkout', width=345, height=50, font=parent.buttonFont, fg_color='#009c0d', hover_color='#006609')
+        self.checkout_button.place(relx=0.75, rely=0.875, anchor='center')
+
+    def backToLastSection(self, categoryId):
+        if categoryId == -1:
+            self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
         else:
-            print('yey!')
+            self = BrowseCategoryItems(parent=self, category=categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+
+    def updateItemDialog(self, element):
+        DIALOG_WIDTH = 400
+        DIALOG_HEIGHT = 200
+
+        result = cur.execute('SELECT * FROM grocery_items WHERE category = ?', [(self.categoryId)]) if self.categoryId != -1 else cur.execute('SELECT * FROM grocery_items')
+        result = result.fetchall()
+
+        groceryItems = []
+        for dbEl in result:
+            id, name, categoryId, stocks, price = dbEl
+            groceryItems.append([id, name, getCategory(categoryId), stocks, price])
+
+        if len(shoppingCartItems) <= 0:
+            self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+        else:
+            for index, item in enumerate(shoppingCartItems):
+                if item[2] == element[2]:
+                    id, quantity, name, price = element
+                    dialog = ctk.CTkInputDialog(title=f'Tindahan ni Aling Nena - Update {name}', text=f'Please enter the new quantity below: (Make sure it\'s lower than {quantity})')
+
+                    x = (dialog.winfo_screenwidth() // 2) - (DIALOG_WIDTH // 2)
+                    y = (dialog.winfo_screenheight() // 2) - (DIALOG_HEIGHT // 2)
+                    dialog.geometry('{}x{}+{}+{}'.format(DIALOG_WIDTH, DIALOG_HEIGHT, x, y))
+
+                    value = dialog.get_input()
+
+                    if value != None:
+                        if value.isnumeric():
+                            finalValue = int(value)
+
+                            if finalValue <= 0:
+                                dialog = askyesno(title=f'Tindahan ni Aling Nena - Remove {name}', text=f'Want to remove item {name} with {quantity} of quantity in your shopping cart? It will decrease your shopping cart\'s total price by ₱{quantity * price}')
+
+                                if dialog:
+                                    shoppingCartItems.pop(index)
+
+                                    if len(shoppingCartItems) <= 0:
+                                        if self.categoryId == -1:
+                                            self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+                                        else:
+                                            self = BrowseCategoryItems(parent=self, category=self.categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+                                else:
+                                    self.updateItemDialog(element)
+                                return
+
+                            for _, el in enumerate(groceryItems):
+                                id, name, category, stocks, price = el
+                                if name == element[2]:
+                                    if stocks - finalValue <= 0:
+                                        dialog = askyesno(title=f'Tindahan ni Aling Nena - Update {element[2]}', message=f'Item {element[2]}\'s stock is not enough to your entered quantity, want to continue? (This will override your selected quantity to available stock)')
+
+                                        if dialog:
+                                            finalValue = stocks
+                                        else:
+                                            self.updateItemDialog(element)
+                                    
+                                    dialog = askyesno(title=f'Tindahan ni Aling Nena - Update {element[2]}', message=f'Want to set item {element[2]}\'s quantity to {finalValue} ({element[1]} before)? Its total price will be ₱{finalValue * price}')
+
+                                    if dialog:
+                                        item[1] = finalValue
+
+                                        self = ShoppingCartFrame(parent=self, categoryId=self.categoryId, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+                                    else:
+                                        self.updateItemDialog(element)
+                        else:
+                            self.updateItemDialog(element)
 
 class HomePageFrame(ctk.CTkFrame):
     def __init__(self, parent, **kwargs):
@@ -333,13 +554,14 @@ class HomePageFrame(ctk.CTkFrame):
         self.subtitleFont = parent.subtitleFont
         self.normalFont = parent.normalFont
         self.buttonFont = parent.buttonFont
+        self.configure(fg_color=FG_COLOR)
 
         self.pack()
 
         self.header = ctk.CTkLabel(self, text='Tindahan ni Aling Nena', font=parent.headerFont)
         self.header.place(relx=0.5, rely=0.1, anchor='center')
 
-        self.subtitle = ctk.CTkLabel(self, text='Made with ♥ by Marlon & Jerico', font=parent.subtitleFont)
+        self.subtitle = ctk.CTkLabel(self, text='Made with ♥ by Marlon & Jericho', font=parent.subtitleFont)
         self.subtitle.place(relx=0.5, rely=0.15, anchor='center')
 
         self.buttons_message_label = ctk.CTkLabel(self, text='Choose the action below:', font=parent.normalFont)
