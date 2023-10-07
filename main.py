@@ -188,6 +188,7 @@ class LoadGroceryItemsFrame(ctk.CTkFrame):
                 self.update()
 
         self.progress_text.insert('0.0', 'Done loading items.\n')
+        self.progress_text.configure(state='disabled')
 
         showinfo(title='Tindahan ni Aling Nena', message='Done loading grocery items.')
 
@@ -604,9 +605,13 @@ class CheckoutPageFrame(ctk.CTkFrame):
         table.append([' ', 'Change', f'₱{self.money - totalPrice}'])
 
         self.checkout_text.insert('0.0', tabulate(table, headers, tablefmt='simple'))
+        self.checkout_text.configure(state='disabled')
 
-        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=700, height=50, font=parent.buttonFont)
+        self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=700, height=50, font=parent.buttonFont, command=self.backToMainMenu)
         self.back_to_main_menu_button.place(relx=0.5, rely=0.9, anchor='center')
+
+    def backToMainMenu(self):
+        self = HomePageFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
 
 class HomePageFrame(ctk.CTkFrame):
     def __init__(self, parent, **kwargs):
