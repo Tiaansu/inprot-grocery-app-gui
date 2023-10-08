@@ -475,33 +475,7 @@ class ShoppingCartFrame(ctk.CTkFrame):
         if len(shoppingCartItems) <= 0:
             self = BrowseCategoriesFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
         else:
-            DIALOG_WIDTH = 400
-            DIALOG_HEIGHT = 200
-            
-            totalPrice = 0
-            for item in shoppingCartItems:
-                totalPrice += item[1] * item[3]
-
-            dialog = ctk.CTkInputDialog(title='Tindahan ni Aling Nena - Checkout shopping cart items', text=f'Please enter your money below: (Make sure it\'s higher than ₱{totalPrice})')
-
-            x = (dialog.winfo_screenwidth() // 2) - (DIALOG_WIDTH // 2)
-            y = (dialog.winfo_screenheight() // 2) - (DIALOG_HEIGHT // 2)
-            dialog.geometry('{}x{}+{}+{}'.format(DIALOG_WIDTH, DIALOG_HEIGHT, x, y))
-
-            value = dialog.get_input()
-
-            if value != None:
-                if value.isnumeric():
-                    finalValue = int(value)
-
-                    if totalPrice > finalValue:
-                        dialog = showwarning(title='Tindahan ni Aling Nena - Checkout shopping cart items', message=f'Insufficient money, you still need ₱{totalPrice - finalValue} to continue.')
-
-                        self.checkoutShoppingCartItems()
-                        return
-                    self = CheckoutPageFrame(parent=self, money=finalValue, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
-                else:
-                    self.checkoutShoppingCartItems()
+            self = CheckoutPageFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
 
     def updateItemDialog(self, element):
         DIALOG_WIDTH = 400
@@ -571,21 +545,20 @@ class ShoppingCartFrame(ctk.CTkFrame):
                             self.updateItemDialog(element)
 
 class CheckoutPageFrame(ctk.CTkFrame):
-    def __init__(self, parent, money, **kwargs):
+    def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         self.headerFont = parent.headerFont
         self.subtitleFont = parent.subtitleFont
         self.normalFont = parent.normalFont
         self.buttonFont = parent.buttonFont
         self.configure(fg_color=FG_COLOR)
-        self.money = money
 
         self.pack()
 
         self.header = ctk.CTkLabel(self, text='Checkout item(s)', font=parent.headerFont)
         self.header.place(relx=0.5, rely=0.1, anchor='center')
 
-        self.checkout_text = ctk.CTkTextbox(self, width=600, height=300, font=ctk.CTkFont('Consolas', 24))
+        self.checkout_text = ctk.CTkTextbox(self, width=600, height=300, font=ctk.CTkFont('Consolas', 22))
         self.checkout_text.grid(padx=(20, 0), pady=(20, 0), sticky='nsew')
         self.checkout_text.place(relx=0.5, rely=0.45, anchor='center')
 
@@ -601,17 +574,22 @@ class CheckoutPageFrame(ctk.CTkFrame):
 
         table.append(['-------', '----------', '-------'])
         table.append([' ', 'Subtotal', f'₱{totalPrice}'])
-        table.append([' ', 'Payment', f'₱{self.money}'])
-        table.append([' ', 'Change', f'₱{self.money - totalPrice}'])
 
         self.checkout_text.insert('0.0', tabulate(table, headers, tablefmt='simple'))
         self.checkout_text.configure(state='disabled')
+
+        self.checkout_message = ctk.CTkLabel(self, text=f'Your order id is {self.generateOrderId()}. Please wait up to 1 to 3 hours for your order to be delivered.\nAnd also prepare ₱{totalPrice} for the payment.', font=ctk.CTkFont('Cascadia Code', 12))
+        self.checkout_message.place(relx=0.5, rely=0.75, anchor='center')
 
         self.back_to_main_menu_button = ctk.CTkButton(self, text='Back to Main Menu', width=700, height=50, font=parent.buttonFont, command=self.backToMainMenu)
         self.back_to_main_menu_button.place(relx=0.5, rely=0.9, anchor='center')
 
     def backToMainMenu(self):
         self = HomePageFrame(parent=self, width=APP_WIDTH, height=APP_HEIGHT, corner_radius=0)
+
+    def generateOrderId(self):
+        orderId = random.randint(10_000_000, 99_999_999)
+        return f'TNA-{orderId}'
 
 class HomePageFrame(ctk.CTkFrame):
     def __init__(self, parent, **kwargs):
